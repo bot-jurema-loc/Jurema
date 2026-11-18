@@ -59,7 +59,7 @@ with col_logo_titulo:
     if os.path.exists("logo_empresa.png"):
         st.image("logo_empresa.png", width=58)
 with col_texto_titulo:
-    st.title("Jurema - Localiza")
+    st.title("Jurema > Localiza")
 
 # ==========================================
 # DICIONÁRIOS DE RESPONSÁVEIS
