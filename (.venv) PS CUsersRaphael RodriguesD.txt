@@ -1,0 +1,3745 @@
+(.venv) PS C:\Users\Raphael Rodrigues\Downloads\Python\Jurema> Get-Content ".\interface\pagina_inicio.py" -Raw
+
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+    QFrame, QScrollArea, QSizePolicy
+)
+
+from PySide6.QtCore import Qt, QDate, QPoint
+from PySide6.QtGui import (
+    QPainter, QColor, QFont, QPolygon
+)
+
+from motor.veiculos import carregar_dados_excel
+
+
+# --------------------------------------------------
+# GRÃFICO DE COLUNAS COM EFEITO 3D
+# --------------------------------------------------
+
+class GraficoObras(QWidget):
+
+    def __init__(self, parent=None):
+
+        super().__init__(parent)
+
+        self.dados = []
+        self.tema_escuro = False
+
+        self.setMinimumHeight(370)
+
+        self.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Fixed
+        )
+
+    def definir_dados(self, dados):
+
+        self.dados = dados
+        self.update()
+
+    def atualizar_tema(self, escuro):
+
+        self.tema_escuro = bool(escuro)
+        self.update()
+
+    def paintEvent(self, evento):
+
+        painter = QPainter(self)
+
+        painter.setRenderHint(
+            QPainter.RenderHint.Antialiasing
+        )
+
+        if self.tema_escuro:
+
+            cor_texto = QColor("#E2E8F0")
+            cor_secundaria = QColor("#A8B6C8")
+            cor_linha = QColor("#354254")
+
+            cor_frente = QColor("#438CCB")
+            cor_lateral = QColor("#28669D")
+            cor_topo = QColor("#82B9E8")
+
+        else:
+
+            cor_texto = QColor("#263445")
+            cor_secundaria = QColor("#64748B")
+            cor_linha = QColor("#E1E8F0")
+
+            cor_frente = QColor("#347FC0")
+            cor_lateral = QColor("#205B91")
+            cor_topo = QColor("#78B5E5")
+
+        largura = self.width()
+        altura = self.height()
+
+        if not self.dados:
+
+            painter.setPen(cor_secundaria)
+
+            painter.drawText(
+                self.rect(),
+                Qt.AlignmentFlag.AlignCenter,
+                "Nenhum dado disponÃ­vel"
+            )
+
+            painter.end()
+            return
+
+        quantidade_colunas = len(self.dados)
+
+        maior_valor = max(
+            valor for _, valor in self.dados
+        )
+
+        if maior_valor <= 0:
+            painter.end()
+            return
+
+        # Ãrea do grÃ¡fico
+
+        margem_esquerda = 35
+        margem_direita = 30
+
+        area_largura = (
+            largura - margem_esquerda - margem_direita
+        )
+
+        topo_grafico = 55
+        base_grafico = altura - 65
+
+        altura_disponivel = base_grafico - topo_grafico
+
+        espacamento = (
+            area_largura / quantidade_colunas
+        )
+
+        largura_coluna = min(
+            58,
+            espacamento * 0.48
+        )
+
+        profundidade = 12
+
+        # Linha de base
+
+        painter.setPen(cor_linha)
+
+        painter.drawLine(
+            margem_esquerda,
+            base_grafico,
+            largura - margem_direita,
+            base_grafico
+        )
+
+        painter.setFont(
+            QFont("Segoe UI", 8)
+        )
+
+        for indice, (obra, quantidade) in enumerate(self.dados):
+
+            centro_x = (
+                margem_esquerda
+                + espacamento * indice
+                + espacamento / 2
+            )
+
+            x = centro_x - largura_coluna / 2
+
+            altura_coluna = (
+                quantidade / maior_valor
+            ) * altura_disponivel * 0.82
+
+            y = base_grafico - altura_coluna
+
+            # Sombra da coluna
+
+            painter.setPen(Qt.PenStyle.NoPen)
+
+            painter.setBrush(
+                QColor(0, 0, 0, 25)
+            )
+
+            painter.drawRoundedRect(
+                int(x + 5),
+                int(y + 8),
+                int(largura_coluna),
+                int(altura_coluna),
+                5,
+                5
+            )
+
+            # Frente da coluna
+
+            painter.setBrush(cor_frente)
+
+            painter.drawRoundedRect(
+                int(x),
+                int(y),
+                int(largura_coluna),
+                int(altura_coluna),
+                4,
+                4
+            )
+
+            # Lateral 3D
+
+            lateral = QPolygon([
+                QPoint(
+                    int(x + largura_coluna),
+                    int(y)
+                ),
+                QPoint(
+                    int(x + largura_coluna + profundidade),
+                    int(y - profundidade)
+                ),
+                QPoint(
+                    int(x + largura_coluna + profundidade),
+                    int(base_grafico - profundidade)
+                ),
+                QPoint(
+                    int(x + largura_coluna),
+                    int(base_grafico)
+                )
+            ])
+
+            painter.setBrush(cor_lateral)
+            painter.drawPolygon(lateral)
+
+            # Topo 3D
+
+            topo = QPolygon([
+                QPoint(int(x), int(y)),
+                QPoint(
+                    int(x + profundidade),
+                    int(y - profundidade)
+                ),
+                QPoint(
+                    int(x + largura_coluna + profundidade),
+                    int(y - profundidade)
+                ),
+                QPoint(
+                    int(x + largura_coluna),
+                    int(y)
+                )
+            ])
+
+            painter.setBrush(cor_topo)
+            painter.drawPolygon(topo)
+
+            # Quantidade acima da coluna
+
+            painter.setPen(cor_texto)
+
+            painter.setFont(
+                QFont("Segoe UI", 9, QFont.Weight.Bold)
+            )
+
+            painter.drawText(
+                int(x - 12),
+                int(y - profundidade - 12),
+                int(largura_coluna + profundidade + 24),
+                18,
+                Qt.AlignmentFlag.AlignCenter,
+                str(quantidade)
+            )
+
+            # Nome da obra abaixo da coluna
+
+            nome = str(obra).strip()
+
+            if len(nome) > 15:
+                nome = nome[:13] + "..."
+
+            painter.setPen(cor_secundaria)
+
+            painter.setFont(
+                QFont("Segoe UI", 8)
+            )
+
+            painter.drawText(
+                int(centro_x - espacamento / 2),
+                base_grafico + 18,
+                int(espacamento),
+                35,
+                Qt.AlignmentFlag.AlignHCenter
+                | Qt.AlignmentFlag.AlignTop,
+                nome
+            )
+
+        painter.end()
+
+
+# --------------------------------------------------
+# CARTÃƒO DE INDICADOR
+# --------------------------------------------------
+
+class CartaoIndicador(QFrame):
+
+    def __init__(
+        self,
+        titulo,
+        icone,
+        descricao,
+        cor_icone,
+        parent=None
+    ):
+
+        super().__init__(parent)
+
+        self.setObjectName("cartaoInicio")
+        self.setMinimumHeight(155)
+
+        self.cor_icone = cor_icone
+
+        layout = QVBoxLayout(self)
+
+        layout.setContentsMargins(20, 17, 20, 17)
+        layout.setSpacing(10)
+
+        topo = QHBoxLayout()
+
+        self.titulo = QLabel(titulo)
+        self.titulo.setObjectName("tituloIndicador")
+
+        self.icone = QLabel(icone)
+        self.icone.setObjectName("iconeIndicador")
+        self.icone.setAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
+
+        self.icone.setFixedSize(48, 48)
+
+        topo.addWidget(self.titulo)
+        topo.addStretch()
+        topo.addWidget(self.icone)
+
+        layout.addLayout(topo)
+
+        self.valor = QLabel("0")
+        self.valor.setObjectName("valorIndicador")
+
+        layout.addWidget(self.valor)
+
+        self.descricao = QLabel(descricao)
+        self.descricao.setObjectName("descricaoIndicador")
+
+        layout.addWidget(self.descricao)
+
+        layout.addStretch()
+
+        self.atualizar_tema(False)
+
+    def definir_valor(self, valor):
+
+        self.valor.setText(
+            f"{valor:,}".replace(",", ".")
+        )
+
+    def atualizar_tema(self, escuro):
+
+        if escuro:
+
+            self.setStyleSheet("""
+                QFrame#cartaoInicio {
+                    background-color: #202936;
+                    border: 1px solid #354254;
+                    border-radius: 13px;
+                }
+
+                QLabel#tituloIndicador {
+                    color: #A8B6C8;
+                    font-size: 12px;
+                    font-weight: 600;
+                    border: none;
+                    background: transparent;
+                }
+
+                QLabel#valorIndicador {
+                    color: #F1F5F9;
+                    font-size: 29px;
+                    font-weight: 700;
+                    border: none;
+                    background: transparent;
+                }
+
+                QLabel#descricaoIndicador {
+                    color: #8798AC;
+                    font-size: 10px;
+                    border: none;
+                    background: transparent;
+                }
+
+                QLabel#iconeIndicador {
+                    background-color: #293F58;
+                    color: #82B9E8;
+                    border-radius: 12px;
+                    font-size: 25px;
+                    border: none;
+                }
+            """)
+
+        else:
+
+            self.setStyleSheet("""
+                QFrame#cartaoInicio {
+                    background-color: #FFFFFF;
+                    border: 1px solid #E1E8F0;
+                    border-radius: 13px;
+                }
+
+                QLabel#tituloIndicador {
+                    color: #64748B;
+                    font-size: 12px;
+                    font-weight: 600;
+                    border: none;
+                    background: transparent;
+                }
+
+                QLabel#valorIndicador {
+                    color: #263445;
+                    font-size: 29px;
+                    font-weight: 700;
+                    border: none;
+                    background: transparent;
+                }
+
+                QLabel#descricaoIndicador {
+                    color: #94A3B8;
+                    font-size: 10px;
+                    border: none;
+                    background: transparent;
+                }
+
+                QLabel#iconeIndicador {
+                    background-color: #EAF3FC;
+                    color: #347FC0;
+                    border-radius: 12px;
+                    font-size: 25px;
+                    border: none;
+                }
+            """)
+
+
+# --------------------------------------------------
+# PÃGINA INICIAL
+# --------------------------------------------------
+
+class PaginaInicio(QWidget):
+
+    def __init__(self):
+
+        super().__init__()
+
+        self.tema_escuro = False
+
+        self.montar_interface()
+        self.atualizar_dados()
+
+    def montar_interface(self):
+
+        layout_principal = QVBoxLayout(self)
+
+        layout_principal.setContentsMargins(0, 0, 0, 0)
+        layout_principal.setSpacing(0)
+
+        self.scroll = QScrollArea()
+
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(
+            QFrame.Shape.NoFrame
+        )
+
+        conteudo = QWidget()
+
+        layout = QVBoxLayout(conteudo)
+
+        layout.setContentsMargins(35, 28, 35, 30)
+        layout.setSpacing(22)
+
+        # --------------------------------------------------
+        # CABEÃ‡ALHO
+        # --------------------------------------------------
+
+        cabecalho = QHBoxLayout()
+
+        bloco_titulo = QVBoxLayout()
+        bloco_titulo.setSpacing(5)
+
+        titulo = QLabel("VisÃ£o geral")
+        titulo.setObjectName("tituloPagina")
+
+        descricao = QLabel(
+            "Acompanhe os indicadores da gestÃ£o de veÃ­culos."
+        )
+
+        descricao.setObjectName("descricaoPagina")
+
+        bloco_titulo.addWidget(titulo)
+        bloco_titulo.addWidget(descricao)
+
+        cabecalho.addLayout(bloco_titulo)
+        cabecalho.addStretch()
+
+        self.data_atual = QLabel()
+        self.data_atual.setObjectName("dataInicio")
+
+        cabecalho.addWidget(self.data_atual)
+
+        layout.addLayout(cabecalho)
+
+        # --------------------------------------------------
+        # INDICADORES
+        # --------------------------------------------------
+
+        indicadores = QHBoxLayout()
+        indicadores.setSpacing(16)
+
+        self.card_veiculos = CartaoIndicador(
+            "VeÃ­culos cadastrados",
+            "ðŸš™",
+            "Total de veÃ­culos na base",
+            "#347FC0"
+        )
+
+        self.card_obras = CartaoIndicador(
+            "Obras cadastradas",
+            "ðŸ—",
+            "Obras com veÃ­culos vinculados",
+            "#347FC0"
+        )
+
+        self.card_responsaveis = CartaoIndicador(
+            "ResponsÃ¡veis",
+            "ðŸ‘¥",
+            "ResponsÃ¡veis identificados",
+            "#347FC0"
+        )
+
+        self.card_ativos = CartaoIndicador(
+            "Ativos identificados",
+            "ðŸ”§",
+            "Identificadores preenchidos",
+            "#347FC0"
+        )
+
+        self.cartoes = [
+            self.card_veiculos,
+            self.card_obras,
+            self.card_responsaveis,
+            self.card_ativos
+        ]
+
+        for cartao in self.cartoes:
+            indicadores.addWidget(cartao)
+
+        layout.addLayout(indicadores)
+
+        # --------------------------------------------------
+        # GRÃFICO 3D
+        # --------------------------------------------------
+
+        self.cartao_grafico = QFrame()
+        self.cartao_grafico.setObjectName("cartaoGrafico")
+
+        layout_grafico = QVBoxLayout(
+            self.cartao_grafico
+        )
+
+        layout_grafico.setContentsMargins(
+            22, 20, 22, 20
+        )
+
+        layout_grafico.setSpacing(10)
+
+        titulo_grafico = QLabel(
+            "DistribuiÃ§Ã£o de veÃ­culos por obra"
+        )
+
+        titulo_grafico.setObjectName("tituloSecaoInicio")
+
+        descricao_grafico = QLabel(
+            "As oito obras com maior quantidade de veÃ­culos cadastrados."
+        )
+
+        descricao_grafico.setObjectName("descricaoInicio")
+
+        layout_grafico.addWidget(titulo_grafico)
+        layout_grafico.addWidget(descricao_grafico)
+
+        self.grafico = GraficoObras()
+
+        layout_grafico.addWidget(self.grafico)
+
+        layout.addWidget(self.cartao_grafico)
+
+        # --------------------------------------------------
+        # RANKING DE OBRAS
+        # --------------------------------------------------
+
+        self.cartao_ranking = QFrame()
+        self.cartao_ranking.setObjectName("cartaoRanking")
+
+        layout_ranking = QVBoxLayout(
+            self.cartao_ranking
+        )
+
+        layout_ranking.setContentsMargins(
+            22, 20, 22, 20
+        )
+
+        layout_ranking.setSpacing(10)
+
+        titulo_ranking = QLabel(
+            "Obras com mais veÃ­culos"
+        )
+
+        titulo_ranking.setObjectName("tituloSecaoInicio")
+
+        descricao_ranking = QLabel(
+            "Ranking das cinco obras com maior quantidade de veÃ­culos."
+        )
+
+        descricao_ranking.setObjectName("descricaoInicio")
+
+        layout_ranking.addWidget(titulo_ranking)
+        layout_ranking.addWidget(descricao_ranking)
+
+        self.lista_ranking = QVBoxLayout()
+        self.lista_ranking.setSpacing(9)
+
+        layout_ranking.addLayout(self.lista_ranking)
+
+        layout.addWidget(self.cartao_ranking)
+
+        layout.addStretch()
+
+        self.scroll.setWidget(conteudo)
+
+        layout_principal.addWidget(self.scroll)
+
+        self.atualizar_tema(False)
+
+    # --------------------------------------------------
+    # ATUALIZAR DADOS DA BASE
+    # --------------------------------------------------
+
+    def atualizar_dados(self):
+
+        try:
+
+            df = carregar_dados_excel()
+
+            total_veiculos = len(df)
+
+            obras = (
+                df["OBRA"]
+                .fillna("")
+                .astype(str)
+                .str.strip()
+            )
+
+            obras_validas = obras[
+                obras != ""
+            ]
+
+            responsaveis = (
+                df["RESPONSAVEL"]
+                .fillna("")
+                .astype(str)
+                .str.strip()
+            )
+
+            responsaveis_validos = responsaveis[
+                responsaveis != ""
+            ]
+
+            ativos = (
+                df["ATIVO"]
+                .fillna("")
+                .astype(str)
+                .str.strip()
+            )
+
+            ativos_validos = ativos[
+                ativos != ""
+            ]
+
+            self.card_veiculos.definir_valor(
+                total_veiculos
+            )
+
+            self.card_obras.definir_valor(
+                obras_validas.nunique()
+            )
+
+            self.card_responsaveis.definir_valor(
+                responsaveis_validos.nunique()
+            )
+
+            self.card_ativos.definir_valor(
+                ativos_validos.nunique()
+            )
+
+            distribuicao = obras_validas.value_counts()
+
+            dados_grafico = [
+                (obra, int(quantidade))
+                for obra, quantidade
+                in distribuicao.head(8).items()
+            ]
+
+            self.grafico.definir_dados(
+                dados_grafico
+            )
+
+            self.atualizar_ranking(distribuicao)
+
+            self.data_atual.setText(
+                QDate.currentDate().toString(
+                    "dd/MM/yyyy"
+                )
+            )
+
+        except Exception as erro:
+
+            self.data_atual.setText(
+                "NÃ£o foi possÃ­vel carregar os dados."
+            )
+
+            print(
+                f"Erro ao atualizar pÃ¡gina inicial: {erro}"
+            )
+
+    # --------------------------------------------------
+    # RANKING
+    # --------------------------------------------------
+
+    def atualizar_ranking(self, distribuicao):
+
+        while self.lista_ranking.count():
+
+            item = self.lista_ranking.takeAt(0)
+
+            widget = item.widget()
+
+            if widget:
+                widget.deleteLater()
+
+        for indice, (obra, quantidade) in enumerate(
+            distribuicao.head(5).items(),
+            start=1
+        ):
+
+            recipiente = QFrame()
+            recipiente.setObjectName("linhaRanking")
+
+            linha = QHBoxLayout(recipiente)
+
+            linha.setContentsMargins(
+                12, 9, 12, 9
+            )
+
+            posicao = QLabel(
+                f"{indice:02d}"
+            )
+
+            posicao.setObjectName("posicaoRanking")
+            posicao.setFixedWidth(35)
+
+            nome = QLabel(str(obra))
+            nome.setObjectName("nomeRanking")
+
+            nome.setWordWrap(True)
+
+            valor = QLabel(
+                f"{int(quantidade)} veÃ­culos"
+            )
+
+            valor.setObjectName("valorRanking")
+
+            linha.addWidget(posicao)
+            linha.addWidget(nome)
+            linha.addStretch()
+            linha.addWidget(valor)
+
+            self.lista_ranking.addWidget(
+                recipiente
+            )
+
+    # --------------------------------------------------
+    # TEMA
+    # --------------------------------------------------
+
+    def atualizar_tema(self, escuro):
+
+        self.tema_escuro = bool(escuro)
+
+        if self.tema_escuro:
+
+            self.setStyleSheet("""
+                QFrame#cartaoGrafico,
+                QFrame#cartaoRanking {
+                    background-color: #202936;
+                    border: 1px solid #354254;
+                    border-radius: 13px;
+                }
+
+                QLabel#tituloSecaoInicio {
+                    color: #E2E8F0;
+                    font-size: 15px;
+                    font-weight: 700;
+                    border: none;
+                    background: transparent;
+                }
+
+                QLabel#descricaoInicio {
+                    color: #A8B6C8;
+                    font-size: 11px;
+                    border: none;
+                    background: transparent;
+                }
+
+                QLabel#dataInicio {
+                    color: #A8B6C8;
+                    font-size: 11px;
+                    background: transparent;
+                }
+
+                QFrame#linhaRanking {
+                    background-color: #263445;
+                    border: 1px solid #354254;
+                    border-radius: 8px;
+                }
+
+                QLabel#posicaoRanking {
+                    color: #82B9E8;
+                    font-weight: 700;
+                    font-size: 12px;
+                    background: transparent;
+                    border: none;
+                }
+
+                QLabel#nomeRanking {
+                    color: #E2E8F0;
+                    font-size: 11px;
+                    background: transparent;
+                    border: none;
+                }
+
+                QLabel#valorRanking {
+                    color: #82B9E8;
+                    font-weight: 600;
+                    font-size: 11px;
+                    background: transparent;
+                    border: none;
+                }
+            """)
+
+        else:
+
+            self.setStyleSheet("""
+                QFrame#cartaoGrafico,
+                QFrame#cartaoRanking {
+                    background-color: #FFFFFF;
+                    border: 1px solid #E1E8F0;
+                    border-radius: 13px;
+                }
+
+                QLabel#tituloSecaoInicio {
+                    color: #263445;
+                    font-size: 15px;
+                    font-weight: 700;
+                    border: none;
+                    background: transparent;
+                }
+
+                QLabel#descricaoInicio {
+                    color: #64748B;
+                    font-size: 11px;
+                    border: none;
+                    background: transparent;
+                }
+
+                QLabel#dataInicio {
+                    color: #64748B;
+                    font-size: 11px;
+                    background: transparent;
+                }
+
+                QFrame#linhaRanking {
+                    background-color: #F8FAFC;
+                    border: 1px solid #E8EDF3;
+                    border-radius: 8px;
+                }
+
+                QLabel#posicaoRanking {
+                    color: #347FC0;
+                    font-weight: 700;
+                    font-size: 12px;
+                    background: transparent;
+                    border: none;
+                }
+
+                QLabel#nomeRanking {
+                    color: #263445;
+                    font-size: 11px;
+                    background: transparent;
+                    border: none;
+                }
+
+                QLabel#valorRanking {
+                    color: #347FC0;
+                    font-weight: 600;
+                    font-size: 11px;
+                    background: transparent;
+                    border: none;
+                }
+            """)
+
+        for cartao in self.cartoes:
+            cartao.atualizar_tema(self.tema_escuro)
+
+        self.grafico.atualizar_tema(
+            self.tema_escuro
+        )
+
+(.venv) PS C:\Users\Raphael Rodrigues\Downloads\Python\Jurema> Get-Content ".\interface\pagina_faturas.py" -Raw
+
+from pathlib import Path
+from collections import Counter
+
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout,
+    QLabel, QPushButton, QFileDialog,
+    QFrame, QTableWidget, QTableWidgetItem,
+    QHeaderView, QMessageBox,
+    QListWidget, QListWidgetItem,
+    QAbstractItemView, QScrollArea,
+    QSizePolicy, QProgressBar, QLineEdit,
+    QGraphicsOpacityEffect
+)
+
+from PySide6.QtCore import (
+    Qt, QThread, Signal, QPropertyAnimation,
+    QEasingCurve, QTimer, QSequentialAnimationGroup
+)
+
+from PySide6.QtGui import (
+    QColor, QFont
+)
+
+from motor.pdf import analisar_varios_pdfs, associar_faturas
+from motor.gerar import gerar_pdfs
+
+
+# --------------------------------------------------
+# CAMPO DE PLACA COM TEXTO COPIAVEL
+# --------------------------------------------------
+
+class CampoPlaca(QLineEdit):
+
+    def __init__(self, texto=""):
+        super().__init__(texto)
+
+        self.setReadOnly(True)
+        self.setFrame(False)
+        self.setObjectName("celulaCopiavel")
+        self.setCursor(Qt.CursorShape.IBeamCursor)
+        self.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+
+    def mouseDoubleClickEvent(self, evento):
+        super().mouseDoubleClickEvent(evento)
+        self.selectAll()
+
+
+# --------------------------------------------------
+# TRABALHADOR DA ANALISE
+# --------------------------------------------------
+
+class TrabalhadorAnalise(QThread):
+
+    progresso = Signal(str, int, int, int, int)
+    concluido = Signal(object)
+    erro = Signal(str)
+
+    def __init__(self, caminhos):
+        super().__init__()
+        self.caminhos = list(caminhos)
+
+    def executar_progresso(
+        self,
+        nome_arquivo,
+        indice_arquivo,
+        total_arquivos,
+        pagina_atual,
+        total_paginas
+    ):
+        self.progresso.emit(
+            nome_arquivo,
+            indice_arquivo,
+            total_arquivos,
+            pagina_atual,
+            total_paginas
+        )
+
+    def run(self):
+        try:
+            resultado = analisar_varios_pdfs(
+                self.caminhos,
+                progresso_callback=self.executar_progresso
+            )
+
+            self.concluido.emit(resultado)
+
+        except Exception as erro:
+            self.erro.emit(str(erro))
+
+
+# --------------------------------------------------
+# PAGINA DE FATURAS
+# --------------------------------------------------
+
+class PaginaFaturas(QWidget):
+
+    def __init__(self):
+        super().__init__()
+
+        self.arquivos_pdf = []
+        self.arquivo_pdf = None
+        self.resultado_analise = []
+        self.associacoes = []
+        self.trabalhador_analise = None
+
+        self.grupo_animacao = None
+        self.itens_animacao = []
+
+        self.escuro = False
+
+        # --------------------------------------------------
+        # ESTRUTURA PRINCIPAL
+        # --------------------------------------------------
+
+        self.layout_principal = QVBoxLayout(self)
+
+        self.layout_principal.setContentsMargins(0, 0, 0, 0)
+        self.layout_principal.setSpacing(0)
+
+        # --------------------------------------------------
+        # PARTE SUPERIOR FIXA
+        # --------------------------------------------------
+
+        self.cabecalho_fixo = QWidget()
+
+        layout_topo = QVBoxLayout(self.cabecalho_fixo)
+
+        layout_topo.setContentsMargins(25, 20, 25, 10)
+        layout_topo.setSpacing(12)
+
+        layout = layout_topo
+
+        titulo = QLabel("Processamento de Faturas")
+        titulo.setObjectName("tituloPagina")
+        layout.addWidget(titulo)
+
+        descricao = QLabel(
+            "Analise varios PDFs, confira as associacoes "
+            "de veiculos e organize as faturas por obra."
+        )
+
+        descricao.setObjectName("descricaoPagina")
+        descricao.setWordWrap(True)
+
+        layout.addWidget(descricao)
+
+        # --------------------------------------------------
+        # SELECAO DE ARQUIVOS
+        # --------------------------------------------------
+
+        cartao_arquivos = QFrame()
+        cartao_arquivos.setObjectName("cartao")
+
+        arquivos_layout = QVBoxLayout(cartao_arquivos)
+
+        arquivos_layout.setContentsMargins(16, 14, 16, 14)
+        arquivos_layout.setSpacing(9)
+
+        titulo_arquivos = QLabel("1. Arquivos PDF")
+        titulo_arquivos.setObjectName("tituloSecao")
+
+        arquivos_layout.addWidget(titulo_arquivos)
+
+        linha_arquivos = QHBoxLayout()
+
+        self.nome_arquivo = QLabel("Nenhum PDF selecionado.")
+        self.nome_arquivo.setWordWrap(True)
+        self.nome_arquivo.setObjectName("textoSecundario")
+
+        linha_arquivos.addWidget(self.nome_arquivo, 1)
+
+        self.botao_selecionar = QPushButton("Selecionar PDFs")
+        self.botao_selecionar.clicked.connect(self.selecionar_pdfs)
+
+        linha_arquivos.addWidget(self.botao_selecionar)
+
+        self.botao_analisar = QPushButton("Analisar arquivos")
+        self.botao_analisar.setEnabled(False)
+        self.botao_analisar.clicked.connect(self.executar_analise)
+
+        linha_arquivos.addWidget(self.botao_analisar)
+
+        arquivos_layout.addLayout(linha_arquivos)
+
+        self.lista_arquivos = QLabel(
+            "Os nomes dos arquivos selecionados aparecerao aqui."
+        )
+
+        self.lista_arquivos.setWordWrap(True)
+        self.lista_arquivos.setObjectName("listaArquivos")
+        self.lista_arquivos.setMaximumHeight(105)
+
+        arquivos_layout.addWidget(self.lista_arquivos)
+
+        # --------------------------------------------------
+        # PROGRESSO DA ANALISE
+        # --------------------------------------------------
+
+        self.cartao_progresso = QFrame()
+        self.cartao_progresso.setObjectName("cartao")
+
+        progresso_layout = QVBoxLayout(self.cartao_progresso)
+
+        progresso_layout.setContentsMargins(14, 10, 14, 10)
+        progresso_layout.setSpacing(6)
+
+        self.texto_progresso = QLabel(
+            "Aguardando inicio da analise."
+        )
+
+        self.texto_progresso.setObjectName("textoSecundario")
+        self.texto_progresso.setWordWrap(True)
+
+        progresso_layout.addWidget(self.texto_progresso)
+
+        self.barra_progresso = QProgressBar()
+        self.barra_progresso.setRange(0, 100)
+        self.barra_progresso.setValue(0)
+        self.barra_progresso.setTextVisible(True)
+        self.barra_progresso.setFormat("%p%")
+
+        progresso_layout.addWidget(self.barra_progresso)
+
+        self.cartao_progresso.setVisible(False)
+
+        arquivos_layout.addWidget(self.cartao_progresso)
+
+        layout.addWidget(cartao_arquivos)
+
+        self.layout_principal.addWidget(self.cabecalho_fixo)
+
+        # --------------------------------------------------
+        # AREA DE ROLAGEM
+        # --------------------------------------------------
+
+        self.area_rolagem = QScrollArea()
+
+        self.area_rolagem.setWidgetResizable(True)
+        self.area_rolagem.setFrameShape(QFrame.Shape.NoFrame)
+
+        self.area_rolagem.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+
+        self.area_rolagem.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+
+        conteudo = QWidget()
+        conteudo.setMinimumWidth(0)
+
+        layout = QVBoxLayout(conteudo)
+
+        layout.setContentsMargins(25, 10, 25, 15)
+        layout.setSpacing(12)
+
+        self.area_rolagem.setWidget(conteudo)
+
+        self.layout_principal.addWidget(
+            self.area_rolagem,
+            1
+        )
+
+        # --------------------------------------------------
+        # RESUMO DA ANALISE
+        # --------------------------------------------------
+
+        self.titulo_resumo = QLabel("2. Resumo da analise")
+        self.titulo_resumo.setObjectName("tituloSecao")
+
+        layout.addWidget(self.titulo_resumo)
+
+        linha_resumo = QHBoxLayout()
+        linha_resumo.setSpacing(10)
+
+        self.card_total = self.criar_card_resumo("FATURAS", "0")
+
+        self.card_identificadas = self.criar_card_resumo(
+            "IDENTIFICADAS", "0"
+        )
+
+        self.card_revisar = self.criar_card_resumo("REVISAR", "0")
+        self.card_pendentes = self.criar_card_resumo("PENDENTES", "0")
+
+        self.cards_resumo = [
+            self.card_total,
+            self.card_identificadas,
+            self.card_revisar,
+            self.card_pendentes
+        ]
+
+        linha_resumo.addWidget(self.card_total)
+        linha_resumo.addWidget(self.card_identificadas)
+        linha_resumo.addWidget(self.card_revisar)
+        linha_resumo.addWidget(self.card_pendentes)
+
+        layout.addLayout(linha_resumo)
+
+        # --------------------------------------------------
+        # OBRAS E FILTRO
+        # --------------------------------------------------
+
+        linha_obras = QHBoxLayout()
+        linha_obras.setSpacing(12)
+
+        self.cartao_resumo_obras = QFrame()
+        self.cartao_resumo_obras.setObjectName("cartao")
+        self.cartao_resumo_obras.setFixedHeight(240)
+
+        resumo_layout = QVBoxLayout(self.cartao_resumo_obras)
+
+        resumo_layout.setContentsMargins(14, 12, 14, 12)
+        resumo_layout.setSpacing(8)
+
+        titulo_obras = QLabel("3. Faturas por obra")
+        titulo_obras.setObjectName("tituloSecao")
+
+        resumo_layout.addWidget(titulo_obras)
+
+        self.resumo_obras = QLabel(
+            "A quantidade de faturas por obra aparecera aqui."
+        )
+
+        self.resumo_obras.setWordWrap(True)
+
+        self.resumo_obras.setAlignment(
+            Qt.AlignmentFlag.AlignTop
+        )
+
+        self.resumo_obras.setObjectName("resumoObras")
+
+        self.resumo_obras.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Preferred
+        )
+
+        self.rolagem_resumo = QScrollArea()
+
+        self.rolagem_resumo.setWidgetResizable(True)
+        self.rolagem_resumo.setFrameShape(QFrame.Shape.NoFrame)
+
+        self.rolagem_resumo.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+
+        self.rolagem_resumo.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+
+        self.rolagem_resumo.setWidget(self.resumo_obras)
+
+        resumo_layout.addWidget(self.rolagem_resumo, 1)
+
+        linha_obras.addWidget(self.cartao_resumo_obras, 3)
+
+        # --------------------------------------------------
+        # FILTRO DE OBRAS
+        # --------------------------------------------------
+
+        self.cartao_filtro = QFrame()
+        self.cartao_filtro.setObjectName("cartao")
+        self.cartao_filtro.setFixedHeight(240)
+
+        filtro_layout = QVBoxLayout(self.cartao_filtro)
+
+        filtro_layout.setContentsMargins(14, 12, 14, 12)
+        filtro_layout.setSpacing(7)
+
+        titulo_filtro = QLabel("4. Filtrar obras")
+        titulo_filtro.setObjectName("tituloSecao")
+
+        filtro_layout.addWidget(titulo_filtro)
+
+        dica_filtro = QLabel(
+            "Marque uma ou mais obras para filtrar as faturas."
+        )
+
+        dica_filtro.setWordWrap(True)
+        dica_filtro.setObjectName("textoSecundario")
+
+        filtro_layout.addWidget(dica_filtro)
+
+        self.lista_obras = QListWidget()
+
+        self.lista_obras.setMinimumHeight(145)
+        self.lista_obras.setMaximumHeight(155)
+        self.lista_obras.setUniformItemSizes(True)
+
+        self.lista_obras.setVerticalScrollMode(
+            QAbstractItemView.ScrollMode.ScrollPerPixel
+        )
+
+        self.lista_obras.itemChanged.connect(
+            self.aplicar_filtro_obras
+        )
+
+        filtro_layout.addWidget(self.lista_obras, 1)
+
+        self.botao_limpar_filtro = QPushButton("Limpar filtro")
+
+        self.botao_limpar_filtro.setObjectName("botaoSecundario")
+
+        self.botao_limpar_filtro.clicked.connect(
+            self.limpar_filtro_obras
+        )
+
+        filtro_layout.addWidget(self.botao_limpar_filtro)
+
+        linha_obras.addWidget(self.cartao_filtro, 2)
+
+        layout.addLayout(linha_obras)
+
+        # --------------------------------------------------
+        # TABELA DE FATURAS
+        # --------------------------------------------------
+
+        self.titulo_tabela = QLabel("5. Faturas encontradas")
+        self.titulo_tabela.setObjectName("tituloSecao")
+
+        layout.addWidget(self.titulo_tabela)
+
+        self.tabela = QTableWidget()
+        self.tabela.setColumnCount(7)
+
+        self.tabela.setHorizontalHeaderLabels([
+            "Selecionar",
+            "Fatura",
+            "Placa",
+            "Ativo",
+            "Obra",
+            "PDF de origem",
+            "Status"
+        ])
+
+        self.tabela.setAlternatingRowColors(True)
+
+        self.tabela.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectItems
+        )
+
+        self.tabela.setSelectionMode(
+            QAbstractItemView.SelectionMode.SingleSelection
+        )
+
+        self.tabela.setEditTriggers(
+            QAbstractItemView.EditTrigger.NoEditTriggers
+        )
+
+        self.tabela.verticalHeader().setVisible(False)
+        self.tabela.setWordWrap(True)
+        self.tabela.setMinimumHeight(300)
+
+        self.tabela.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding
+        )
+
+        cabecalho = self.tabela.horizontalHeader()
+
+        for coluna in (0, 1, 2, 3, 6):
+            cabecalho.setSectionResizeMode(
+                coluna,
+                QHeaderView.ResizeMode.ResizeToContents
+            )
+
+        cabecalho.setSectionResizeMode(
+            4, QHeaderView.ResizeMode.Stretch
+        )
+
+        cabecalho.setSectionResizeMode(
+            5, QHeaderView.ResizeMode.Stretch
+        )
+
+        self.tabela.cellClicked.connect(self.alternar_selecao)
+
+        layout.addWidget(self.tabela, 1)
+
+        # --------------------------------------------------
+        # BARRA INFERIOR FIXA
+        # --------------------------------------------------
+
+        barra_acoes = QFrame()
+        barra_acoes.setObjectName("barraAcoes")
+
+        layout_botoes = QHBoxLayout(barra_acoes)
+
+        layout_botoes.setContentsMargins(25, 8, 25, 12)
+        layout_botoes.setSpacing(10)
+
+        self.botao_marcar = QPushButton("Marcar todas visiveis")
+
+        self.botao_marcar.clicked.connect(
+            lambda: self.marcar_todas(True)
+        )
+
+        layout_botoes.addWidget(self.botao_marcar)
+
+        self.botao_desmarcar = QPushButton("Desmarcar todas")
+
+        self.botao_desmarcar.setObjectName("botaoSecundario")
+
+        self.botao_desmarcar.clicked.connect(
+            lambda: self.marcar_todas(False)
+        )
+
+        layout_botoes.addWidget(self.botao_desmarcar)
+
+        self.status = QLabel("Aguardando selecao de arquivos.")
+
+        self.status.setWordWrap(True)
+        self.status.setObjectName("statusFaturas")
+
+        layout_botoes.addWidget(self.status, 1)
+
+        self.botao_gerar = QPushButton("Gerar PDFs selecionados")
+
+        self.botao_gerar.setObjectName("botaoGerar")
+        self.botao_gerar.setEnabled(False)
+
+        self.botao_gerar.clicked.connect(self.executar_geracao)
+
+        layout_botoes.addWidget(self.botao_gerar)
+
+        self.layout_principal.addWidget(barra_acoes)
+
+        # --------------------------------------------------
+        # ESTADO INICIAL
+        # --------------------------------------------------
+
+        self.definir_opcoes_pos_analise(False)
+
+        self.atualizar_tema(False)
+
+    # --------------------------------------------------
+    # MOSTRAR OU OCULTAR OPCOES
+    # --------------------------------------------------
+
+    def definir_opcoes_pos_analise(self, visivel):
+
+        self.titulo_resumo.setVisible(visivel)
+
+        for card in self.cards_resumo:
+            card.setVisible(visivel)
+
+        self.cartao_resumo_obras.setVisible(visivel)
+        self.cartao_filtro.setVisible(visivel)
+
+        self.titulo_tabela.setVisible(visivel)
+        self.tabela.setVisible(visivel)
+
+        self.botao_marcar.setVisible(visivel)
+        self.botao_desmarcar.setVisible(visivel)
+        self.botao_gerar.setVisible(visivel)
+
+    # --------------------------------------------------
+    # TEMA CLARO E ESCURO
+    # --------------------------------------------------
+
+    def atualizar_tema(self, escuro):
+
+        self.escuro = bool(escuro)
+
+        if escuro:
+            fundo_cartao = "#263445"
+            borda = "#46566A"
+            texto = "#E7EDF5"
+            texto_secundario = "#B8C5D4"
+            titulo = "#DCEBFA"
+            numero = "#8FC5FF"
+            fundo_lista = "#1D2938"
+            fundo_alternado = "#2B3A4D"
+            fundo_hover = "#354960"
+            fundo_selecao = "#385879"
+            texto_selecao = "#FFFFFF"
+            fundo_cabecalho = "#34465B"
+            borda_checkbox = "#AAB9CA"
+            checkbox_marcado = "#4D9BE8"
+            fundo_lista_arquivos = "#1D2938"
+            fundo_barra = "#263445"
+
+        else:
+            fundo_cartao = "#FFFFFF"
+            borda = "#DCE3EA"
+            texto = "#263445"
+            texto_secundario = "#64748B"
+            titulo = "#17365D"
+            numero = "#174F86"
+            fundo_lista = "#FFFFFF"
+            fundo_alternado = "#F5F8FC"
+            fundo_hover = "#EDF3F9"
+            fundo_selecao = "#DCEBFA"
+            texto_selecao = "#17365D"
+            fundo_cabecalho = "#EAF0F6"
+            borda_checkbox = "#718096"
+            checkbox_marcado = "#2878C7"
+            fundo_lista_arquivos = "#F5F8FC"
+            fundo_barra = "#FFFFFF"
+
+        self.setStyleSheet(f"""
+            QWidget {{
+                color: {texto};
+            }}
+
+            QFrame#cartao {{
+                background-color: {fundo_cartao};
+                border: 1px solid {borda};
+                border-radius: 10px;
+            }}
+
+            QFrame#barraAcoes {{
+                background-color: {fundo_barra};
+                border-top: 1px solid {borda};
+            }}
+
+            QLabel#tituloSecao {{
+                color: {titulo};
+                font-size: 15px;
+                font-weight: bold;
+            }}
+
+            QLabel#numeroResumo {{
+                color: {numero};
+                font-size: 23px;
+                font-weight: bold;
+            }}
+
+            QLabel#textoSecundario {{
+                color: {texto_secundario};
+                font-size: 12px;
+            }}
+
+            QLabel#resumoObras {{
+                color: {texto};
+                font-size: 12px;
+            }}
+
+            QLabel#statusFaturas {{
+                color: {texto_secundario};
+                font-weight: bold;
+            }}
+
+            QLabel#listaArquivos {{
+                background-color: {fundo_lista_arquivos};
+                border: 1px solid {borda};
+                border-radius: 6px;
+                padding: 9px;
+                color: {texto};
+            }}
+
+            QProgressBar {{
+                border: 1px solid {borda};
+                border-radius: 6px;
+                background-color: {fundo_alternado};
+                color: {texto};
+                text-align: center;
+                min-height: 18px;
+                font-weight: bold;
+            }}
+
+            QProgressBar::chunk {{
+                background-color: #2878C7;
+                border-radius: 5px;
+            }}
+
+            QScrollArea {{
+                background-color: transparent;
+                border: none;
+            }}
+
+            QListWidget {{
+                background-color: {fundo_lista};
+                border: 1px solid {borda};
+                border-radius: 7px;
+                padding: 5px;
+                color: {texto};
+                outline: none;
+            }}
+
+            QListWidget::item {{
+                padding: 7px;
+                border-radius: 5px;
+            }}
+
+            QListWidget::item:hover {{
+                background-color: {fundo_hover};
+            }}
+
+            QListWidget::indicator {{
+                width: 18px;
+                height: 18px;
+                border: 2px solid {borda_checkbox};
+                border-radius: 4px;
+                background-color: {fundo_lista};
+            }}
+
+            QListWidget::indicator:checked {{
+                background-color: {checkbox_marcado};
+                border: 2px solid {checkbox_marcado};
+            }}
+
+            QTableWidget {{
+                background-color: {fundo_lista};
+                alternate-background-color: {fundo_alternado};
+                color: {texto};
+                gridline-color: {borda};
+                border: 1px solid {borda};
+                border-radius: 7px;
+                selection-background-color: {fundo_selecao};
+                selection-color: {texto_selecao};
+            }}
+
+            QTableWidget::item {{
+                padding: 7px;
+            }}
+
+            QTableWidget::item:selected {{
+                background-color: {fundo_selecao};
+                color: {texto_selecao};
+            }}
+
+            QLineEdit#celulaCopiavel {{
+                background-color: transparent;
+                color: {texto};
+                border: none;
+                padding: 7px;
+                selection-background-color: {fundo_selecao};
+                selection-color: {texto_selecao};
+            }}
+
+            QHeaderView::section {{
+                background-color: {fundo_cabecalho};
+                color: {texto};
+                padding: 10px 6px;
+                border: none;
+                border-bottom: 1px solid {borda};
+                font-weight: bold;
+            }}
+
+            QPushButton#botaoSecundario {{
+                background-color: {fundo_alternado};
+                color: {texto};
+                border: 1px solid {borda};
+            }}
+
+            QPushButton#botaoSecundario:hover {{
+                background-color: {fundo_hover};
+            }}
+
+            QPushButton#botaoGerar {{
+                background-color: #16804A;
+                color: white;
+                padding: 12px 18px;
+                border: none;
+                font-weight: bold;
+            }}
+
+            QPushButton#botaoGerar:hover {{
+                background-color: #11683C;
+            }}
+
+            QPushButton#botaoGerar:disabled {{
+                background-color: {fundo_alternado};
+                color: {texto_secundario};
+            }}
+        """)
+
+    # --------------------------------------------------
+    # CRIAR CARDS
+    # --------------------------------------------------
+
+    def criar_card_resumo(self, titulo, valor):
+
+        card = QFrame()
+        card.setObjectName("cartao")
+
+        card_layout = QVBoxLayout(card)
+
+        card_layout.setContentsMargins(12, 10, 12, 10)
+        card_layout.setSpacing(4)
+
+        label_titulo = QLabel(titulo)
+        label_titulo.setObjectName("textoSecundario")
+
+        label_titulo.setAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
+
+        label_valor = QLabel(valor)
+        label_valor.setObjectName("numeroResumo")
+
+        label_valor.setAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
+
+        card_layout.addWidget(label_titulo)
+        card_layout.addWidget(label_valor)
+
+        card.valor = label_valor
+
+        return card
+
+    # --------------------------------------------------
+    # ANIMACAO DE TRANSPARENCIA INDIVIDUAL
+    # --------------------------------------------------
+
+    def limpar_animacoes(self):
+
+        if self.grupo_animacao is not None:
+            self.grupo_animacao.stop()
+            self.grupo_animacao = None
+
+        for widget, efeito in self.itens_animacao:
+
+            widget.setGraphicsEffect(None)
+
+        self.itens_animacao.clear()
+
+    def iniciar_transicao_resultados(self):
+
+        self.limpar_animacoes()
+
+        self.area_rolagem.verticalScrollBar().setValue(0)
+
+        self.definir_opcoes_pos_analise(True)
+
+        layout = self.area_rolagem.widget().layout()
+
+        if layout:
+            layout.activate()
+
+        self.area_rolagem.viewport().update()
+
+        # A animacao comeca antes do proximo desenho da tela.
+        self.executar_animacao_transparencia()
+
+    def executar_animacao_transparencia(self):
+
+        elementos = [
+            self.titulo_resumo,
+
+            self.card_total,
+            self.card_identificadas,
+            self.card_revisar,
+            self.card_pendentes,
+
+            self.cartao_resumo_obras,
+            self.cartao_filtro,
+
+            self.titulo_tabela,
+            self.tabela,
+
+            self.botao_marcar,
+            self.botao_desmarcar,
+            self.botao_gerar
+        ]
+
+        self.grupo_animacao = QSequentialAnimationGroup(self)
+
+        for widget in elementos:
+
+            if not widget.isVisible():
+                continue
+
+            # Cada elemento recebe seu proprio efeito
+            # de opacidade, sem cobertura preta ou solida.
+            efeito = QGraphicsOpacityEffect(widget)
+
+            efeito.setOpacity(0.0)
+
+            widget.setGraphicsEffect(efeito)
+
+            self.itens_animacao.append(
+                (widget, efeito)
+            )
+
+            animacao = QPropertyAnimation(
+                efeito,
+                b"opacity",
+                self.grupo_animacao
+            )
+
+            animacao.setDuration(320)
+
+            animacao.setStartValue(0.0)
+            animacao.setEndValue(1.0)
+
+            animacao.setEasingCurve(
+                QEasingCurve.Type.OutCubic
+            )
+
+            self.grupo_animacao.addAnimation(animacao)
+
+        self.grupo_animacao.finished.connect(
+            self.finalizar_animacao_transparencia
+        )
+
+        self.grupo_animacao.start()
+
+    def finalizar_animacao_transparencia(self):
+
+        for widget, efeito in self.itens_animacao:
+
+            widget.setGraphicsEffect(None)
+
+        self.itens_animacao.clear()
+
+        self.grupo_animacao = None
+
+    def cancelar_animacao_transparencia(self):
+
+        self.limpar_animacoes()
+
+    # --------------------------------------------------
+    # IDENTIFICACAO DAS OBRAS
+    # --------------------------------------------------
+
+    def obter_obras_associacao(self, associacao):
+
+        obras = set()
+
+        for veiculo in associacao.get("veiculos", []):
+
+            obra = str(veiculo.get("obra", "")).strip()
+            codigo = str(veiculo.get("codigo_obra", "")).strip()
+
+            if codigo or obra:
+
+                identificacao = (
+                    f"{codigo or 'SEM CODIGO'} - "
+                    f"{obra or 'OBRA NAO IDENTIFICADA'}"
+                )
+
+                obras.add(identificacao)
+
+        if not obras:
+            obras.add("SEM OBRA IDENTIFICADA")
+
+        return obras
+
+    # --------------------------------------------------
+    # ATUALIZAR CARDS
+    # --------------------------------------------------
+
+    def atualizar_cards(self):
+
+        identificadas = sum(
+            1 for item in self.associacoes
+            if item["status"] == "identificado"
+        )
+
+        revisar = sum(
+            1 for item in self.associacoes
+            if item["status"] == "revisar"
+        )
+
+        pendentes = sum(
+            1 for item in self.associacoes
+            if item["status"] == "pendente"
+        )
+
+        self.card_total.valor.setText(str(len(self.associacoes)))
+        self.card_identificadas.valor.setText(str(identificadas))
+        self.card_revisar.valor.setText(str(revisar))
+        self.card_pendentes.valor.setText(str(pendentes))
+
+    # --------------------------------------------------
+    # RESUMO DE FATURAS POR OBRA
+    # --------------------------------------------------
+
+    def atualizar_resumo_obras(self):
+
+        contagem = Counter()
+
+        for associacao in self.associacoes:
+
+            for obra in self.obter_obras_associacao(associacao):
+                contagem[obra] += 1
+
+        if not contagem:
+            self.resumo_obras.setText(
+                "Nenhuma obra identificada."
+            )
+            return
+
+        linhas = []
+
+        for obra, quantidade in sorted(contagem.items()):
+            linhas.append(f"- {obra}: {quantidade} fatura(s)")
+
+        linhas.append("")
+        linhas.append(f"TOTAL: {len(self.associacoes)} fatura(s)")
+
+        self.resumo_obras.setText("\n".join(linhas))
+
+    # --------------------------------------------------
+    # PREENCHER FILTRO
+    # --------------------------------------------------
+
+    def preencher_filtro_obras(self):
+
+        self.lista_obras.blockSignals(True)
+        self.lista_obras.clear()
+
+        contagem = Counter()
+
+        for associacao in self.associacoes:
+
+            for obra in self.obter_obras_associacao(associacao):
+                contagem[obra] += 1
+
+        for obra, quantidade in sorted(contagem.items()):
+
+            item = QListWidgetItem(
+                f"{obra}  ({quantidade})"
+            )
+
+            item.setData(
+                Qt.ItemDataRole.UserRole,
+                obra
+            )
+
+            item.setFlags(
+                item.flags() | Qt.ItemFlag.ItemIsUserCheckable
+            )
+
+            item.setCheckState(
+                Qt.CheckState.Unchecked
+            )
+
+            self.lista_obras.addItem(item)
+
+        self.lista_obras.blockSignals(False)
+
+        self.aplicar_filtro_obras()
+
+    # --------------------------------------------------
+    # FILTRAR OBRAS
+    # --------------------------------------------------
+
+    def aplicar_filtro_obras(self, item=None):
+
+        obras_selecionadas = set()
+
+        for indice in range(self.lista_obras.count()):
+
+            item_obra = self.lista_obras.item(indice)
+
+            if item_obra.checkState() == Qt.CheckState.Checked:
+
+                obra = item_obra.data(
+                    Qt.ItemDataRole.UserRole
+                )
+
+                obras_selecionadas.add(obra)
+
+        for linha, associacao in enumerate(self.associacoes):
+
+            obras_fatura = self.obter_obras_associacao(
+                associacao
+            )
+
+            if not obras_selecionadas:
+                visivel = True
+            else:
+                visivel = bool(
+                    obras_fatura & obras_selecionadas
+                )
+
+            self.tabela.setRowHidden(
+                linha,
+                not visivel
+            )
+
+        self.atualizar_status_selecao()
+
+    # --------------------------------------------------
+    # LIMPAR FILTRO
+    # --------------------------------------------------
+
+    def limpar_filtro_obras(self):
+
+        self.lista_obras.blockSignals(True)
+
+        for indice in range(self.lista_obras.count()):
+
+            self.lista_obras.item(indice).setCheckState(
+                Qt.CheckState.Unchecked
+            )
+
+        self.lista_obras.blockSignals(False)
+
+        self.aplicar_filtro_obras()
+
+    # --------------------------------------------------
+    # INDICADOR DE SELECAO
+    # --------------------------------------------------
+
+    def atualizar_indicador(self, linha, marcado):
+
+        item = self.tabela.item(linha, 0)
+
+        if not item:
+            return
+
+        fonte = QFont("Segoe UI", 12)
+        fonte.setBold(True)
+
+        item.setFont(fonte)
+
+        item.setTextAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
+
+        if marcado:
+            item.setText("âœ“")
+            item.setForeground(QColor("#168044"))
+            item.setBackground(QColor("#E1F3E8"))
+        else:
+            item.setText("â€”")
+            item.setForeground(QColor("#8A98A8"))
+            item.setBackground(QColor("#F0F3F6"))
+
+    # --------------------------------------------------
+    # STATUS DA SELECAO
+    # --------------------------------------------------
+
+    def atualizar_status_selecao(self):
+
+        selecionadas = len(
+            self.obter_faturas_selecionadas()
+        )
+
+        visiveis = sum(
+            1
+            for linha in range(self.tabela.rowCount())
+            if not self.tabela.isRowHidden(linha)
+        )
+
+        self.status.setText(
+            f"Visiveis: {visiveis} | Selecionadas: {selecionadas}"
+        )
+
+        self.botao_gerar.setEnabled(
+            selecionadas > 0
+            and (
+                self.trabalhador_analise is None
+                or not self.trabalhador_analise.isRunning()
+            )
+        )
+
+    # --------------------------------------------------
+    # SELECAO INDIVIDUAL
+    # --------------------------------------------------
+
+    def alternar_selecao(self, linha, coluna):
+
+        if coluna != 0:
+            return
+
+        if self.trabalhador_analise is not None:
+
+            if self.trabalhador_analise.isRunning():
+                return
+
+        if self.tabela.isRowHidden(linha):
+            return
+
+        item = self.tabela.item(linha, 0)
+
+        if not item:
+            return
+
+        marcado = item.text() != "âœ“"
+
+        if marcado:
+
+            associacao = self.associacoes[linha]
+            veiculos = associacao.get("veiculos", [])
+
+            if (
+                associacao["status"] != "identificado"
+                or len(veiculos) != 1
+                or not str(
+                    veiculos[0].get("codigo_obra") or ""
+                ).strip()
+            ):
+
+                QMessageBox.warning(
+                    self,
+                    "Fatura nao liberada",
+                    "Esta fatura precisa de revisao ou possui "
+                    "dados incompletos de identificacao."
+                )
+
+                return
+
+        self.atualizar_indicador(linha, marcado)
+
+        self.atualizar_status_selecao()
+
+    # --------------------------------------------------
+    # SELECIONAR VARIOS PDFs
+    # --------------------------------------------------
+
+    def selecionar_pdfs(self):
+
+        caminhos, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Selecionar arquivos PDF",
+            "",
+            "Arquivos PDF (*.pdf)"
+        )
+
+        if not caminhos:
+            return
+
+        self.cancelar_animacao_transparencia()
+
+        self.arquivos_pdf = caminhos
+        self.arquivo_pdf = caminhos[0]
+
+        self.resultado_analise = []
+        self.associacoes = []
+
+        self.definir_opcoes_pos_analise(False)
+
+        self.tabela.setRowCount(0)
+        self.lista_obras.clear()
+
+        nomes = [
+            f"- {Path(caminho).name}"
+            for caminho in caminhos
+        ]
+
+        self.nome_arquivo.setText(
+            f"{len(caminhos)} arquivo(s) selecionado(s)"
+        )
+
+        self.lista_arquivos.setText(
+            "\n".join(nomes)
+        )
+
+        self.resumo_obras.setText(
+            "Aguardando analise dos arquivos."
+        )
+
+        self.card_total.valor.setText("0")
+        self.card_identificadas.valor.setText("0")
+        self.card_revisar.valor.setText("0")
+        self.card_pendentes.valor.setText("0")
+
+        self.cartao_progresso.setVisible(False)
+
+        self.barra_progresso.setValue(0)
+
+        self.botao_analisar.setEnabled(True)
+        self.botao_gerar.setEnabled(False)
+
+        self.status.setText(
+            "Arquivos selecionados. Prontos para analise."
+        )
+
+    # --------------------------------------------------
+    # ANALISAR PDFs
+    # --------------------------------------------------
+
+    def executar_analise(self):
+
+        if not self.arquivos_pdf:
+            return
+
+        if (
+            self.trabalhador_analise is not None
+            and self.trabalhador_analise.isRunning()
+        ):
+            return
+
+        self.cancelar_animacao_transparencia()
+
+        self.botao_analisar.setEnabled(False)
+        self.botao_selecionar.setEnabled(False)
+        self.botao_gerar.setEnabled(False)
+        self.botao_marcar.setEnabled(False)
+        self.botao_desmarcar.setEnabled(False)
+
+        self.cartao_progresso.setVisible(True)
+
+        self.barra_progresso.setValue(0)
+
+        self.texto_progresso.setText(
+            "Preparando analise e carregando cadastro de veiculos..."
+        )
+
+        self.status.setText(
+            "Iniciando analise dos arquivos..."
+        )
+
+        self.trabalhador_analise = TrabalhadorAnalise(
+            self.arquivos_pdf
+        )
+
+        self.trabalhador_analise.progresso.connect(
+            self.atualizar_progresso
+        )
+
+        self.trabalhador_analise.concluido.connect(
+            self.analise_concluida
+        )
+
+        self.trabalhador_analise.erro.connect(
+            self.analise_falhou
+        )
+
+        self.trabalhador_analise.finished.connect(
+            self.finalizar_trabalhador
+        )
+
+        self.trabalhador_analise.start()
+
+    # --------------------------------------------------
+    # ATUALIZAR BARRA DE PROGRESSO
+    # --------------------------------------------------
+
+    def atualizar_progresso(
+        self,
+        nome_arquivo,
+        indice_arquivo,
+        total_arquivos,
+        pagina_atual,
+        total_paginas
+    ):
+
+        percentual_arquivo = (
+            pagina_atual / total_paginas
+            if total_paginas
+            else 0
+        )
+
+        percentual_total = (
+            (indice_arquivo - 1 + percentual_arquivo)
+            / total_arquivos
+        ) * 100
+
+        percentual_total = int(percentual_total)
+
+        self.barra_progresso.setValue(
+            percentual_total
+        )
+
+        self.texto_progresso.setText(
+            f"PDF {indice_arquivo} de {total_arquivos}: "
+            f"{nome_arquivo}\n"
+            f"Pagina {pagina_atual} de {total_paginas}"
+        )
+
+        self.status.setText(
+            f"Analisando {nome_arquivo} - "
+            f"{percentual_total}% concluido."
+        )
+
+    # --------------------------------------------------
+    # ANALISE CONCLUIDA
+    # --------------------------------------------------
+
+    def analise_concluida(self, resultado):
+
+        self.resultado_analise = resultado
+
+        self.associacoes = associar_faturas(
+            self.resultado_analise
+        )
+
+        self.preencher_tabela()
+        self.atualizar_cards()
+        self.atualizar_resumo_obras()
+        self.preencher_filtro_obras()
+        self.atualizar_status_selecao()
+
+        self.barra_progresso.setValue(100)
+
+        self.texto_progresso.setText(
+            f"Analise concluida! "
+            f"{len(self.arquivos_pdf)} PDF(s) processados."
+        )
+
+        self.status.setText(
+            f"Analise concluida: {len(self.arquivos_pdf)} "
+            f"PDF(s) e {len(self.associacoes)} fatura(s)."
+        )
+
+        self.iniciar_transicao_resultados()
+
+    # --------------------------------------------------
+    # ERRO NA ANALISE
+    # --------------------------------------------------
+
+    def analise_falhou(self, mensagem):
+
+        self.cancelar_animacao_transparencia()
+
+        self.definir_opcoes_pos_analise(False)
+
+        self.texto_progresso.setText(
+            f"Falha na analise: {mensagem}"
+        )
+
+        self.status.setText(
+            "Falha na analise dos arquivos."
+        )
+
+        QMessageBox.critical(
+            self,
+            "Erro na analise",
+            f"Nao foi possivel analisar os PDFs:\n\n{mensagem}"
+        )
+
+    # --------------------------------------------------
+    # FINALIZAR TRABALHADOR
+    # --------------------------------------------------
+
+    def finalizar_trabalhador(self):
+
+        self.botao_analisar.setEnabled(
+            bool(self.arquivos_pdf)
+        )
+
+        self.botao_selecionar.setEnabled(True)
+        self.botao_marcar.setEnabled(True)
+        self.botao_desmarcar.setEnabled(True)
+
+        self.atualizar_status_selecao()
+
+        trabalhador = self.trabalhador_analise
+
+        self.trabalhador_analise = None
+
+        if trabalhador is not None:
+            trabalhador.deleteLater()
+
+    # --------------------------------------------------
+    # PREENCHER TABELA
+    # --------------------------------------------------
+
+    def preencher_tabela(self):
+
+        self.tabela.setRowCount(0)
+
+        for associacao in self.associacoes:
+
+            linha = self.tabela.rowCount()
+
+            self.tabela.insertRow(linha)
+
+            veiculos = associacao.get("veiculos", [])
+
+            placas = ", ".join(
+                f"{p[:3]}-{p[3:]}"
+                if len(p) == 7
+                else p
+                for p in associacao.get("placas", [])
+            )
+
+            ativos = ", ".join(
+                str(v.get("ativo", ""))
+                for v in veiculos
+                if v.get("ativo")
+            )
+
+            obras = ", ".join(
+                sorted(
+                    self.obter_obras_associacao(associacao)
+                )
+            )
+
+            origem = associacao.get(
+                "nome_arquivo",
+                Path(
+                    associacao.get("arquivo_origem", "")
+                ).name
+            )
+
+            dados = [
+                "",
+                associacao.get("fatura") or "Nao identificada",
+                placas or "Nao identificada",
+                ativos or "-",
+                obras,
+                origem or "-",
+                associacao["status"].upper()
+            ]
+
+            for coluna, valor in enumerate(dados):
+
+                item = QTableWidgetItem(str(valor))
+
+                item.setFlags(
+                    Qt.ItemFlag.ItemIsEnabled
+                    | Qt.ItemFlag.ItemIsSelectable
+                )
+
+                if coluna == 0:
+
+                    item.setTextAlignment(
+                        Qt.AlignmentFlag.AlignCenter
+                    )
+
+                if coluna == 5:
+
+                    item.setToolTip(
+                        associacao.get("arquivo_origem", "")
+                    )
+
+                if coluna == 6:
+
+                    if associacao["status"] == "identificado":
+                        item.setForeground(QColor("#168044"))
+
+                    elif associacao["status"] == "revisar":
+                        item.setForeground(QColor("#B7791F"))
+
+                    else:
+                        item.setForeground(QColor("#C62828"))
+
+                    fonte = item.font()
+                    fonte.setBold(True)
+                    item.setFont(fonte)
+
+                if coluna == 2:
+
+                    campo_placa = CampoPlaca(str(valor))
+
+                    self.tabela.setCellWidget(
+                        linha,
+                        coluna,
+                        campo_placa
+                    )
+
+                else:
+
+                    self.tabela.setItem(
+                        linha,
+                        coluna,
+                        item
+                    )
+
+            selecionado = (
+                associacao["status"] == "identificado"
+                and len(veiculos) == 1
+                and bool(
+                    str(
+                        veiculos[0].get("codigo_obra") or ""
+                    ).strip()
+                )
+            )
+
+            self.atualizar_indicador(
+                linha,
+                selecionado
+            )
+
+            self.tabela.setRowHeight(linha, 42)
+
+            self.tabela.setRowHidden(
+                linha,
+                False
+            )
+
+    # --------------------------------------------------
+    # MARCAR OU DESMARCAR TODAS
+    # --------------------------------------------------
+
+    def marcar_todas(self, marcar):
+
+        for linha in range(self.tabela.rowCount()):
+
+            if self.tabela.isRowHidden(linha):
+                continue
+
+            associacao = self.associacoes[linha]
+
+            if marcar:
+
+                veiculos = associacao.get("veiculos", [])
+
+                if (
+                    associacao["status"] != "identificado"
+                    or len(veiculos) != 1
+                    or not str(
+                        veiculos[0].get("codigo_obra") or ""
+                    ).strip()
+                ):
+                    continue
+
+            self.atualizar_indicador(
+                linha,
+                marcar
+            )
+
+        self.atualizar_status_selecao()
+
+    # --------------------------------------------------
+    # OBTER FATURAS SELECIONADAS
+    # --------------------------------------------------
+
+    def obter_faturas_selecionadas(self):
+
+        selecionadas = []
+
+        for linha, associacao in enumerate(self.associacoes):
+
+            item = self.tabela.item(linha, 0)
+
+            if item and item.text() == "âœ“":
+                selecionadas.append(associacao)
+
+        return selecionadas
+
+    # --------------------------------------------------
+    # GERAR PDFs
+    # --------------------------------------------------
+
+    def executar_geracao(self):
+
+        if (
+            self.trabalhador_analise is not None
+            and self.trabalhador_analise.isRunning()
+        ):
+            return
+
+        selecionadas = self.obter_faturas_selecionadas()
+
+        if not selecionadas:
+
+            QMessageBox.warning(
+                self,
+                "Nenhuma fatura selecionada",
+                "Marque pelo menos uma fatura para gerar os PDFs."
+            )
+
+            return
+
+        resposta = QMessageBox.question(
+            self,
+            "Confirmar geracao",
+            f"Gerar PDFs de {len(selecionadas)} fatura(s)?",
+            QMessageBox.StandardButton.Yes
+            | QMessageBox.StandardButton.No
+        )
+
+        if resposta != QMessageBox.StandardButton.Yes:
+            return
+
+        self.botao_gerar.setEnabled(False)
+        self.botao_analisar.setEnabled(False)
+        self.botao_selecionar.setEnabled(False)
+
+        self.status.setText(
+            "Gerando PDFs. Aguarde..."
+        )
+
+        try:
+
+            resultado = gerar_pdfs(
+                None,
+                selecionadas
+            )
+
+            self.status.setText(
+                f"Concluido: {resultado['total']} faturas "
+                f"organizadas em {resultado['total_obras']} obras."
+            )
+
+            QMessageBox.information(
+                self,
+                "Geracao concluida",
+                f"Processamento concluido com sucesso!\n\n"
+                f"Faturas: {resultado['total']}\n"
+                f"Obras: {resultado['total_obras']}\n\n"
+                f"Os PDFs individuais, unificados e ZIPs por obra "
+                f"foram salvos em:\n{resultado['pasta_saida']}"
+            )
+
+        except Exception as erro:
+
+            QMessageBox.critical(
+                self,
+                "Erro na geracao",
+                f"Nao foi possivel gerar os PDFs:\n\n{erro}"
+            )
+
+            self.status.setText(
+                "Falha na geracao dos PDFs."
+            )
+
+        finally:
+
+            self.botao_analisar.setEnabled(
+                bool(self.arquivos_pdf)
+            )
+
+            self.botao_selecionar.setEnabled(True)
+
+            self.atualizar_status_selecao()
+
+(.venv) PS C:\Users\Raphael Rodrigues\Downloads\Python\Jurema> Get-Content ".\interface\pagina_relatorios.py" -Raw
+
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout,
+    QLabel, QFrame, QLineEdit, QPushButton,
+    QComboBox, QTableWidget, QTableWidgetItem,
+    QHeaderView, QFileDialog, QMessageBox,
+    QScrollArea
+)
+
+from PySide6.QtCore import Qt, QRectF
+from PySide6.QtGui import QPainter, QColor, QFont
+
+from motor.veiculos import carregar_dados_excel
+
+
+# ======================================================
+# GRÃFICO DE PIZZA - VEÃCULOS POR OBRA
+# ======================================================
+
+class GraficoObras(QWidget):
+
+    def __init__(self, parent=None):
+
+        super().__init__(parent)
+
+        self.dados = []
+        self.escuro = False
+
+        self.setMinimumHeight(330)
+        self.setMaximumHeight(350)
+
+        self.cores = [
+            "#2367A5",
+            "#35A7A0",
+            "#E5A13D",
+            "#8B6BC1",
+            "#D66A75",
+            "#5D9CEC",
+            "#73B77B",
+            "#C18A54",
+            "#718096",
+            "#A0AEC0"
+        ]
+
+    def definir_dados(self, dados):
+
+        self.dados = dados
+        self.update()
+
+    def atualizar_tema(self, escuro):
+
+        self.escuro = escuro
+        self.update()
+
+    def paintEvent(self, evento):
+
+        painter = QPainter(self)
+
+        painter.setRenderHint(
+            QPainter.RenderHint.Antialiasing
+        )
+
+        if self.escuro:
+            texto = QColor("#E2E8F0")
+            secundario = QColor("#A8B6C8")
+        else:
+            texto = QColor("#263445")
+            secundario = QColor("#64748B")
+
+        if not self.dados:
+
+            painter.setPen(secundario)
+
+            painter.drawText(
+                self.rect(),
+                Qt.AlignmentFlag.AlignCenter,
+                "Nenhum veÃ­culo encontrado."
+            )
+
+            painter.end()
+            return
+
+        total = sum(
+            quantidade for _, quantidade in self.dados
+        )
+
+        if total <= 0:
+            painter.end()
+            return
+
+        # DESENHAR PIZZA
+
+        diametro = min(
+            280,
+            self.height() - 30
+        )
+
+        x = 25
+        y = (self.height() - diametro) // 2
+
+        area_pizza = QRectF(
+            x,
+            y,
+            diametro,
+            diametro
+        )
+
+        angulo_inicio = 90 * 16
+        angulo_acumulado = 0
+
+        painter.setPen(Qt.PenStyle.NoPen)
+
+        for indice, (obra, quantidade) in enumerate(self.dados):
+
+            if indice == len(self.dados) - 1:
+                angulo = 360 * 16 - angulo_acumulado
+            else:
+                angulo = round(
+                    quantidade / total * 360 * 16
+                )
+
+            painter.setBrush(
+                QColor(self.cores[indice % len(self.cores)])
+            )
+
+            painter.drawPie(
+                area_pizza.toRect(),
+                angulo_inicio,
+                angulo
+            )
+
+            angulo_inicio += angulo
+            angulo_acumulado += angulo
+
+        # LEGENDA
+
+        fonte = QFont("Segoe UI")
+        fonte.setPointSize(9)
+
+        painter.setFont(fonte)
+
+        metricas = painter.fontMetrics()
+
+        inicio_legenda_x = diametro + 65
+        inicio_legenda_y = 12
+
+        altura_linha = 29
+
+        largura_legenda = max(
+            150,
+            self.width() - inicio_legenda_x - 30
+        )
+
+        for indice, (obra, quantidade) in enumerate(self.dados):
+
+            y_linha = (
+                inicio_legenda_y
+                + indice * altura_linha
+            )
+
+            cor = QColor(
+                self.cores[indice % len(self.cores)]
+            )
+
+            # QUADRADO COLORIDO
+
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(cor)
+
+            painter.drawRoundedRect(
+                QRectF(
+                    inicio_legenda_x,
+                    y_linha + 6,
+                    12,
+                    12
+                ),
+                3,
+                3
+            )
+
+            # NOME DA OBRA
+
+            painter.setPen(texto)
+
+            nome = metricas.elidedText(
+                str(obra),
+                Qt.TextElideMode.ElideRight,
+                max(100, largura_legenda - 170)
+            )
+
+            painter.drawText(
+                QRectF(
+                    inicio_legenda_x + 23,
+                    y_linha,
+                    largura_legenda - 175,
+                    altura_linha
+                ),
+                Qt.AlignmentFlag.AlignVCenter,
+                nome
+            )
+
+            # QUANTIDADE E PERCENTUAL
+
+            percentual = quantidade / total * 100
+
+            informacao = (
+                f"{quantidade} veÃ­culos  |  {percentual:.1f}%"
+            )
+
+            painter.setPen(secundario)
+
+            painter.drawText(
+                QRectF(
+                    self.width() - 170,
+                    y_linha,
+                    165,
+                    altura_linha
+                ),
+                Qt.AlignmentFlag.AlignRight
+                | Qt.AlignmentFlag.AlignVCenter,
+                informacao
+            )
+
+        painter.end()
+
+
+# ======================================================
+# PÃGINA DE RELATÃ“RIOS
+# ======================================================
+
+class PaginaRelatorios(QWidget):
+
+    def __init__(self):
+
+        super().__init__()
+
+        self.dados = carregar_dados_excel()
+        self.escuro = False
+
+        self.setObjectName("paginaRelatorios")
+
+        # ÃREA EXTERNA COM ROLAGEM
+
+        layout_externo = QVBoxLayout(self)
+
+        layout_externo.setContentsMargins(0, 0, 0, 0)
+        layout_externo.setSpacing(0)
+
+        self.area_rolagem = QScrollArea()
+
+        self.area_rolagem.setWidgetResizable(True)
+
+        self.area_rolagem.setFrameShape(
+            QFrame.Shape.NoFrame
+        )
+
+        self.area_rolagem.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+
+        self.area_rolagem.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+
+        conteudo = QWidget()
+        conteudo.setObjectName("conteudoRelatorios")
+
+        self.layout_principal = QVBoxLayout(conteudo)
+
+        self.layout_principal.setContentsMargins(
+            30, 25, 30, 25
+        )
+
+        self.layout_principal.setSpacing(18)
+
+        self.area_rolagem.setWidget(conteudo)
+
+        layout_externo.addWidget(self.area_rolagem)
+
+        # CRIAÃ‡ÃƒO DOS COMPONENTES
+
+        self.criar_cabecalho()
+        self.criar_indicadores()
+        self.criar_grafico()
+        self.criar_filtros()
+        self.criar_tabela()
+
+        self.atualizar_indicadores()
+        self.atualizar_grafico()
+        self.atualizar_tabela()
+
+        # APLICAR TEMA INICIAL
+
+        self.atualizar_tema(False)
+
+    # --------------------------------------------------
+    # CABEÃ‡ALHO
+    # --------------------------------------------------
+
+    def criar_cabecalho(self):
+
+        linha = QHBoxLayout()
+
+        layout_titulo = QVBoxLayout()
+
+        titulo = QLabel("RelatÃ³rios")
+
+        titulo.setStyleSheet("""
+            font-size: 25px;
+            font-weight: bold;
+        """)
+
+        descricao = QLabel(
+            "Consulte, filtre e exporte informaÃ§Ãµes da frota."
+        )
+
+        descricao.setStyleSheet("""
+            font-size: 13px;
+            color: #64748B;
+        """)
+
+        layout_titulo.addWidget(titulo)
+        layout_titulo.addWidget(descricao)
+
+        self.botao_atualizar = QPushButton(
+            "â†» Atualizar dados"
+        )
+
+        self.botao_atualizar.setObjectName(
+            "botaoAtualizarRelatorios"
+        )
+
+        self.botao_atualizar.setCursor(
+            Qt.CursorShape.PointingHandCursor
+        )
+
+        self.botao_atualizar.clicked.connect(
+            self.atualizar_dados
+        )
+
+        linha.addLayout(layout_titulo)
+        linha.addStretch()
+        linha.addWidget(self.botao_atualizar)
+
+        self.layout_principal.addLayout(linha)
+
+    # --------------------------------------------------
+    # INDICADORES
+    # --------------------------------------------------
+
+    def criar_indicadores(self):
+
+        linha = QHBoxLayout()
+        linha.setSpacing(15)
+
+        self.card_veiculos = self.criar_card(
+            "VEÃCULOS CADASTRADOS"
+        )
+
+        self.card_obras = self.criar_card(
+            "OBRAS CADASTRADAS"
+        )
+
+        self.card_responsaveis = self.criar_card(
+            "RESPONSÃVEIS"
+        )
+
+        linha.addWidget(self.card_veiculos)
+        linha.addWidget(self.card_obras)
+        linha.addWidget(self.card_responsaveis)
+
+        self.layout_principal.addLayout(linha)
+
+    def criar_card(self, titulo):
+
+        card = QFrame()
+        card.setObjectName("cardRelatorio")
+
+        card.setMinimumHeight(105)
+
+        layout = QVBoxLayout(card)
+
+        layout.setContentsMargins(18, 14, 18, 14)
+
+        label_titulo = QLabel(titulo)
+
+        label_titulo.setStyleSheet("""
+            font-size: 11px;
+            font-weight: bold;
+            color: #64748B;
+        """)
+
+        valor = QLabel("0")
+        valor.setObjectName("valorIndicador")
+
+        valor.setStyleSheet("""
+            font-size: 27px;
+            font-weight: bold;
+            color: #2367A5;
+        """)
+
+        layout.addWidget(label_titulo)
+        layout.addWidget(valor)
+
+        card.valor = valor
+
+        return card
+
+    def atualizar_indicadores(self):
+
+        if self.dados is None or self.dados.empty:
+            return
+
+        self.card_veiculos.valor.setText(
+            str(len(self.dados))
+        )
+
+        self.card_obras.valor.setText(
+            str(self.dados["OBRA"].nunique())
+        )
+
+        self.card_responsaveis.valor.setText(
+            str(self.dados["RESPONSAVEL"].nunique())
+        )
+
+    # --------------------------------------------------
+    # GRÃFICO
+    # --------------------------------------------------
+
+    def criar_grafico(self):
+
+        card = QFrame()
+        card.setObjectName("cardRelatorio")
+
+        layout = QVBoxLayout(card)
+
+        layout.setContentsMargins(18, 15, 18, 12)
+        layout.setSpacing(8)
+
+        titulo = QLabel(
+            "DistribuiÃ§Ã£o de veÃ­culos por obra"
+        )
+
+        titulo.setStyleSheet("""
+            font-size: 15px;
+            font-weight: bold;
+        """)
+
+        descricao = QLabel(
+            "ParticipaÃ§Ã£o das 10 obras com maior quantidade de veÃ­culos."
+        )
+
+        descricao.setStyleSheet("""
+            font-size: 12px;
+            color: #64748B;
+        """)
+
+        self.grafico_obras = GraficoObras()
+
+        layout.addWidget(titulo)
+        layout.addWidget(descricao)
+        layout.addWidget(self.grafico_obras)
+
+        self.layout_principal.addWidget(card)
+
+    def atualizar_grafico(self):
+
+        if self.dados is None or self.dados.empty:
+
+            self.grafico_obras.definir_dados([])
+            return
+
+        contagem = (
+            self.dados["OBRA"]
+            .dropna()
+            .value_counts()
+            .head(10)
+        )
+
+        dados_grafico = [
+            (obra, int(quantidade))
+            for obra, quantidade in contagem.items()
+        ]
+
+        self.grafico_obras.definir_dados(
+            dados_grafico
+        )
+
+    # --------------------------------------------------
+    # FILTROS
+    # --------------------------------------------------
+
+    def criar_filtros(self):
+
+        card = QFrame()
+        card.setObjectName("cardRelatorio")
+
+        layout = QVBoxLayout(card)
+
+        layout.setContentsMargins(18, 16, 18, 16)
+        layout.setSpacing(12)
+
+        titulo = QLabel("Filtros do relatÃ³rio")
+
+        titulo.setStyleSheet("""
+            font-size: 15px;
+            font-weight: bold;
+        """)
+
+        layout.addWidget(titulo)
+
+        linha = QHBoxLayout()
+
+        self.filtro_obra = QComboBox()
+
+        self.filtro_obra.addItem("Todas as obras")
+
+        obras = sorted(
+            self.dados["OBRA"].dropna().unique().tolist()
+        )
+
+        self.filtro_obra.addItems(obras)
+
+        self.filtro_responsavel = QComboBox()
+
+        self.filtro_responsavel.addItem(
+            "Todos os responsÃ¡veis"
+        )
+
+        responsaveis = sorted(
+            self.dados["RESPONSAVEL"].dropna().unique().tolist()
+        )
+
+        self.filtro_responsavel.addItems(responsaveis)
+
+        self.filtro_placa = QLineEdit()
+
+        self.filtro_placa.setPlaceholderText(
+            "Pesquisar por placa..."
+        )
+
+        self.botao_filtrar = QPushButton("Filtrar")
+
+        self.botao_filtrar.setObjectName(
+            "botaoFiltrarRelatorios"
+        )
+
+        self.botao_filtrar.setCursor(
+            Qt.CursorShape.PointingHandCursor
+        )
+
+        self.botao_filtrar.clicked.connect(
+            self.aplicar_filtros
+        )
+
+        self.botao_limpar = QPushButton("Limpar")
+
+        self.botao_limpar.setObjectName(
+            "botaoLimparRelatorios"
+        )
+
+        self.botao_limpar.setCursor(
+            Qt.CursorShape.PointingHandCursor
+        )
+
+        self.botao_limpar.clicked.connect(
+            self.limpar_filtros
+        )
+
+        linha.addWidget(self.filtro_obra, 2)
+        linha.addWidget(self.filtro_responsavel, 2)
+        linha.addWidget(self.filtro_placa, 2)
+        linha.addWidget(self.botao_filtrar)
+        linha.addWidget(self.botao_limpar)
+
+        layout.addLayout(linha)
+
+        self.layout_principal.addWidget(card)
+
+    # --------------------------------------------------
+    # TABELA
+    # --------------------------------------------------
+
+    def criar_tabela(self):
+
+        card = QFrame()
+        card.setObjectName("cardRelatorio")
+
+        card.setMinimumHeight(390)
+
+        layout = QVBoxLayout(card)
+
+        layout.setContentsMargins(18, 16, 18, 16)
+        layout.setSpacing(12)
+
+        cabecalho = QHBoxLayout()
+
+        titulo = QLabel("Resultado do relatÃ³rio")
+
+        titulo.setStyleSheet("""
+            font-size: 15px;
+            font-weight: bold;
+        """)
+
+        self.botao_excel = QPushButton("Exportar Excel")
+
+        self.botao_excel.setObjectName(
+            "botaoExcelRelatorios"
+        )
+
+        self.botao_excel.setCursor(
+            Qt.CursorShape.PointingHandCursor
+        )
+
+        self.botao_excel.clicked.connect(
+            self.exportar_excel
+        )
+
+        cabecalho.addWidget(titulo)
+        cabecalho.addStretch()
+        cabecalho.addWidget(self.botao_excel)
+
+        layout.addLayout(cabecalho)
+
+        self.tabela = QTableWidget()
+
+        self.tabela.setColumnCount(5)
+        self.tabela.setMinimumHeight(320)
+
+        self.tabela.setHorizontalHeaderLabels([
+            "Placa",
+            "Ativo",
+            "Obra",
+            "CÃ³digo da obra",
+            "ResponsÃ¡vel"
+        ])
+
+        self.tabela.setAlternatingRowColors(True)
+
+        self.tabela.setEditTriggers(
+            QTableWidget.EditTrigger.NoEditTriggers
+        )
+
+        self.tabela.setSelectionBehavior(
+            QTableWidget.SelectionBehavior.SelectRows
+        )
+
+        self.tabela.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+
+        self.tabela.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
+        )
+
+        layout.addWidget(self.tabela, 1)
+
+        self.layout_principal.addWidget(card)
+
+    # --------------------------------------------------
+    # APLICAR FILTROS
+    # --------------------------------------------------
+
+    def aplicar_filtros(self):
+
+        dados = self.dados.copy()
+
+        obra = self.filtro_obra.currentText()
+
+        responsavel = self.filtro_responsavel.currentText()
+
+        placa = self.filtro_placa.text().strip().upper()
+
+        placa = placa.replace("-", "").replace(" ", "")
+
+        if obra != "Todas as obras":
+
+            dados = dados[
+                dados["OBRA"] == obra
+            ]
+
+        if responsavel != "Todos os responsÃ¡veis":
+
+            dados = dados[
+                dados["RESPONSAVEL"] == responsavel
+            ]
+
+        if placa:
+
+            dados = dados[
+                dados["PLACA"].astype(str).str.upper().str.contains(
+                    placa,
+                    na=False
+                )
+            ]
+
+        self.atualizar_tabela(dados)
+
+    # --------------------------------------------------
+    # LIMPAR FILTROS
+    # --------------------------------------------------
+
+    def limpar_filtros(self):
+
+        self.filtro_obra.setCurrentIndex(0)
+
+        self.filtro_responsavel.setCurrentIndex(0)
+
+        self.filtro_placa.clear()
+
+        self.atualizar_tabela()
+
+    # --------------------------------------------------
+    # ATUALIZAR TABELA
+    # --------------------------------------------------
+
+    def atualizar_tabela(self, dados=None):
+
+        if dados is None:
+            dados = self.dados
+
+        self.tabela.setRowCount(len(dados))
+
+        for linha, (_, registro) in enumerate(
+            dados.iterrows()
+        ):
+
+            placa = str(registro["PLACA"])
+
+            if len(placa) == 7:
+                placa = placa[:3] + "-" + placa[3:]
+
+            valores = [
+                placa,
+                registro["ATIVO"],
+                registro["OBRA"],
+                registro["CODIGO DA OBRA"],
+                registro["RESPONSAVEL"]
+            ]
+
+            for coluna, valor in enumerate(valores):
+
+                item = QTableWidgetItem(
+                    str(valor) if valor is not None else ""
+                )
+
+                item.setTextAlignment(
+                    Qt.AlignmentFlag.AlignCenter
+                )
+
+                self.tabela.setItem(
+                    linha,
+                    coluna,
+                    item
+                )
+
+    # --------------------------------------------------
+    # ATUALIZAR DADOS DA BASE
+    # --------------------------------------------------
+
+    def atualizar_dados(self):
+
+        self.botao_atualizar.setEnabled(False)
+        self.botao_atualizar.setText("Atualizando...")
+
+        try:
+
+            novos_dados = carregar_dados_excel()
+
+            if novos_dados is None or novos_dados.empty:
+
+                QMessageBox.warning(
+                    self,
+                    "AtenÃ§Ã£o",
+                    "NÃ£o foram encontrados veÃ­culos na base."
+                )
+
+                return
+
+            self.dados = novos_dados
+
+            # ATUALIZAR INDICADORES
+
+            self.atualizar_indicadores()
+
+            # ATUALIZAR GRÃFICO
+
+            self.atualizar_grafico()
+
+            # ATUALIZAR FILTRO DE OBRAS
+
+            self.filtro_obra.clear()
+
+            self.filtro_obra.addItem("Todas as obras")
+
+            obras = sorted(
+                self.dados["OBRA"].dropna().unique().tolist()
+            )
+
+            self.filtro_obra.addItems(obras)
+
+            # ATUALIZAR FILTRO DE RESPONSÃVEIS
+
+            self.filtro_responsavel.clear()
+
+            self.filtro_responsavel.addItem(
+                "Todos os responsÃ¡veis"
+            )
+
+            responsaveis = sorted(
+                self.dados["RESPONSAVEL"].dropna().unique().tolist()
+            )
+
+            self.filtro_responsavel.addItems(responsaveis)
+
+            # LIMPAR PESQUISA
+
+            self.filtro_placa.clear()
+
+            # ATUALIZAR TABELA
+
+            self.atualizar_tabela()
+
+            QMessageBox.information(
+                self,
+                "Dados atualizados",
+                (
+                    "Os relatÃ³rios foram atualizados com sucesso!\n\n"
+                    f"VeÃ­culos: {len(self.dados)}\n"
+                    f"Obras: {self.dados['OBRA'].nunique()}\n"
+                    f"ResponsÃ¡veis: {self.dados['RESPONSAVEL'].nunique()}"
+                )
+            )
+
+        except Exception as erro:
+
+            QMessageBox.critical(
+                self,
+                "Erro ao atualizar",
+                f"NÃ£o foi possÃ­vel atualizar os dados:\n{erro}"
+            )
+
+        finally:
+
+            self.botao_atualizar.setEnabled(True)
+            self.botao_atualizar.setText("â†» Atualizar dados")
+
+    # --------------------------------------------------
+    # EXPORTAR EXCEL
+    # --------------------------------------------------
+
+    def exportar_excel(self):
+
+        caminho, _ = QFileDialog.getSaveFileName(
+            self,
+            "Salvar relatÃ³rio",
+            "Relatorio_Jurema.xlsx",
+            "Planilhas Excel (*.xlsx)"
+        )
+
+        if not caminho:
+            return
+
+        try:
+
+            linhas = []
+
+            for linha in range(self.tabela.rowCount()):
+
+                registro = []
+
+                for coluna in range(self.tabela.columnCount()):
+
+                    item = self.tabela.item(linha, coluna)
+
+                    registro.append(
+                        item.text() if item else ""
+                    )
+
+                linhas.append(registro)
+
+            import pandas as pd
+
+            colunas = [
+                "Placa",
+                "Ativo",
+                "Obra",
+                "CÃ³digo da obra",
+                "ResponsÃ¡vel"
+            ]
+
+            pd.DataFrame(
+                linhas,
+                columns=colunas
+            ).to_excel(
+                caminho,
+                index=False
+            )
+
+            QMessageBox.information(
+                self,
+                "RelatÃ³rio exportado",
+                "O relatÃ³rio foi exportado com sucesso!"
+            )
+
+        except Exception as erro:
+
+            QMessageBox.critical(
+                self,
+                "Erro ao exportar",
+                f"NÃ£o foi possÃ­vel exportar o relatÃ³rio:\n{erro}"
+            )
+
+    # --------------------------------------------------
+    # TEMA
+    # --------------------------------------------------
+
+    def atualizar_tema(self, escuro):
+
+        self.escuro = escuro
+
+        if escuro:
+
+            fundo = "#171D26"
+            cartao = "#202936"
+            texto = "#E2E8F0"
+            secundario = "#A8B6C8"
+            destaque = "#5B9BD5"
+            borda = "#354254"
+
+            fundo_botao = "#31577A"
+            hover_botao = "#3D6B94"
+            texto_botao = "#FFFFFF"
+
+            fundo_secundario = "#293647"
+            hover_secundario = "#35465B"
+
+        else:
+
+            fundo = "#F5F7FA"
+            cartao = "#FFFFFF"
+            texto = "#263445"
+            secundario = "#64748B"
+            destaque = "#2367A5"
+            borda = "#DCE3EA"
+
+            fundo_botao = "#2367A5"
+            hover_botao = "#1B568E"
+            texto_botao = "#FFFFFF"
+
+            fundo_secundario = "#FFFFFF"
+            hover_secundario = "#EDF3F8"
+
+        # ESTILO DA PÃGINA E DOS COMPONENTES
+
+        self.setStyleSheet(f"""
+            QWidget#paginaRelatorios {{
+                background-color: {fundo};
+                color: {texto};
+            }}
+
+            QScrollArea {{
+                background-color: {fundo};
+                border: none;
+            }}
+
+            QWidget#conteudoRelatorios {{
+                background-color: transparent;
+            }}
+
+            QFrame#cardRelatorio {{
+                background-color: {cartao};
+                border: 1px solid {borda};
+                border-radius: 12px;
+            }}
+
+            QLabel {{
+                color: {texto};
+            }}
+
+            QLabel#valorIndicador {{
+                color: {destaque};
+                font-size: 27px;
+                font-weight: bold;
+            }}
+
+            QLineEdit, QComboBox {{
+                background-color: {cartao};
+                color: {texto};
+                border: 1px solid {borda};
+                border-radius: 7px;
+                padding: 9px;
+            }}
+
+            QLineEdit:focus, QComboBox:focus {{
+                border: 1px solid {destaque};
+            }}
+
+            QComboBox QAbstractItemView {{
+                background-color: {cartao};
+                color: {texto};
+                selection-background-color: {destaque};
+                selection-color: white;
+                border: 1px solid {borda};
+            }}
+
+            QTableWidget {{
+                background-color: {cartao};
+                color: {texto};
+                alternate-background-color: {fundo};
+                gridline-color: {borda};
+                border: 1px solid {borda};
+                border-radius: 7px;
+            }}
+
+            QTableWidget::item {{
+                padding: 5px;
+            }}
+
+            QTableWidget::item:selected {{
+                background-color: {destaque};
+                color: white;
+            }}
+
+            QHeaderView::section {{
+                background-color: {fundo};
+                color: {texto};
+                padding: 9px;
+                border: none;
+                border-bottom: 1px solid {borda};
+                font-weight: bold;
+            }}
+
+            QScrollBar:vertical {{
+                background-color: {fundo};
+                width: 10px;
+                margin: 0px;
+            }}
+
+            QScrollBar::handle:vertical {{
+                background-color: {borda};
+                border-radius: 5px;
+                min-height: 25px;
+            }}
+
+            QScrollBar::add-line:vertical,
+            QScrollBar::sub-line:vertical {{
+                height: 0px;
+            }}
+        """)
+
+        # ESTILO INDIVIDUAL DOS BOTÃ•ES
+        # Aplicado diretamente em cada botÃ£o para evitar
+        # interferÃªncia do tema global da janela principal.
+
+        estilo_primario = f"""
+            QPushButton {{
+                background-color: {fundo_botao};
+                color: {texto_botao};
+                border: 1px solid {fundo_botao};
+                border-radius: 7px;
+                padding: 9px 15px;
+                font-weight: bold;
+            }}
+
+            QPushButton:hover {{
+                background-color: {hover_botao};
+                border: 1px solid {hover_botao};
+            }}
+
+            QPushButton:pressed {{
+                background-color: {destaque};
+                border: 1px solid {destaque};
+            }}
+
+            QPushButton:disabled {{
+                background-color: {secundario};
+                color: #FFFFFF;
+                border: 1px solid {secundario};
+            }}
+        """
+
+        estilo_secundario = f"""
+            QPushButton {{
+                background-color: {fundo_secundario};
+                color: {texto};
+                border: 1px solid {borda};
+                border-radius: 7px;
+                padding: 9px 15px;
+                font-weight: bold;
+            }}
+
+            QPushButton:hover {{
+                background-color: {hover_secundario};
+                border: 1px solid {destaque};
+                color: {destaque};
+            }}
+
+            QPushButton:pressed {{
+                background-color: {fundo_secundario};
+                border: 1px solid {destaque};
+            }}
+
+            QPushButton:disabled {{
+                background-color: {fundo_secundario};
+                color: {secundario};
+                border: 1px solid {borda};
+            }}
+        """
+
+        self.botao_atualizar.setStyleSheet(
+            estilo_primario
+        )
+
+        self.botao_filtrar.setStyleSheet(
+            estilo_primario
+        )
+
+        self.botao_excel.setStyleSheet(
+            estilo_primario
+        )
+
+        self.botao_limpar.setStyleSheet(
+            estilo_secundario
+        )
+
+        # ATUALIZAR GRÃFICO
+
+        self.grafico_obras.atualizar_tema(escuro)
+
+(.venv) PS C:\Users\Raphael Rodrigues\Downloads\Python\Jurema>
